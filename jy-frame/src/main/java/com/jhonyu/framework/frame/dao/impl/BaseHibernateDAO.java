@@ -551,7 +551,70 @@ public abstract class BaseHibernateDAO<T, PK extends Serializable> implements IB
         return list;
     }
 
+    /**
+     * @Description: 构建hql语句
+     * @userName: jiangyu
+     * @date: 2016年3月2日 下午8:34:47
+     * @param properties
+     * @return
+     */
     private QueryInfoHelper constructHqlWithPropertyHelper(Set<PropertyHelper> properties)
+    {
+        String hqlStr = "";
+        String orderByStr = "";
+        Map<String, Object> values = new ConcurrentHashMap<String, Object>();
+        for (PropertyHelper property : properties)
+        {
+            /** 是否支持排序策略   added by jiangyu 20160302 **/
+            Boolean autoAsc = property.getAutoOrderAsc();
+            if (!CollectionUtil.isEmpty(autoAsc))
+            {
+                if (autoAsc)
+                {
+                    /** 升序  **/
+                    orderByStr += ","+property.getPropertyName()+" "+ASC;
+                }else {
+                    /** 降序  **/
+                    orderByStr += ","+property.getPropertyName()+" "+DESC;
+                }
+                if (CollectionUtil.isEmpty(property.getValue()))
+                {
+                    continue;
+                }
+            }
+            
+            ValiContainer.getInstance().clear()
+            .registerExcep(new ExcpHelper(property.getValue(),ErrorCodeConstant.PROPERTYVALUE_EMPTY_OR_NULL_CODE,Condition.EMPTY))
+            .validate();
+            /** 组织hql语句  **/
+            if (Restriction.EQ_OR.equals(property.getRes()))
+            {
+                Map<String, Object> valueMap = (Map<String, Object>)property.getValue();
+                int i=0;
+                hqlStr+= " AND (";
+                for (Map.Entry<String, Object> entry : valueMap.entrySet())
+                {
+                    ++i;
+                    values.put("va"+i, entry.getValue());
+                    hqlStr +=property.getPropertyName()+"=:"+("va"+i)+" OR ";
+                }
+                hqlStr+=" 1=2 ) ";
+                continue;
+            }else {
+                values.put(property.getPropertyName(), property.getValue());
+                hqlStr += HqlFormatterUtil.getInstance().clear().addRestrict(property.getPropertyName(),property.getRes()).format();
+            }
+        }
+        /** 追加排序的hql语句  **/
+        if (orderByStr.length()>0)
+        {
+            hqlStr += " ORDER BY "+orderByStr.substring(1);
+        }
+        return new QueryInfoHelper(hqlStr,values);
+    }
+
+    @Deprecated
+    private QueryInfoHelper constructHqlWithPropertyHelper_bak(Set<PropertyHelper> properties)
     {
         String hqlStr = "";
         Map<String, Object> values = new ConcurrentHashMap<String, Object>();
